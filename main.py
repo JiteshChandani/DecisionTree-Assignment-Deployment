@@ -1,43 +1,38 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from flask_cors import cross_origin
 import pickle
+import numpy as np
 
-app = Flask(__name__, template_folder= 'Template') # initializing a flask app
-#app=application
-@app.route('/',methods=['GET'])  # route to display the home page
-@cross_origin()
-def homePage():
-    return render_template("index.html")
+app = Flask(__name__, template_folder= 'Template')
+model = pickle.load(open('decision_tree.pickle', 'rb'))
 
-@app.route('/predict',methods=['POST','GET']) # route to show the predictions in a web UI
-@cross_origin()
-def index():
-    if request.method == 'POST':
-        try:
-            #  reading the inputs given by the user
-            Age= float(request.form['Age'])
-            Fare = float(request.form['Fare'])
-            Parch = int(request.form['Parch'])
-            Pclass = int(request.form['Pclass'])
-            Sex = int(request.form['Sex'])
-            SibSp = int(request.form['SibSp'])
+@app.route('/')
+def home():
+    return render_template('index.html')
 
-            filename = 'decision_tree.pickle'
-            loaded_model = pickle.load(open(filename, 'rb'))  # loading the model file from the storage
-            # predictions using the loaded model file
-            prediction = loaded_model.predict([[Age,Fare,Parch,Pclass,Sex,SibSp ]])
-            print('prediction is', prediction)
-            # showing the prediction results in a UI
-            return render_template('results.html', prediction= prediction)
+@app.route('/predict',methods=['POST'])
+def predict():
+    '''
+    For rendering results on HTML GUI
+    '''
+    int_features = [float(x) for x in request.form.values()]
+    final_features = [np.array(int_features)]
+    prediction = model.predict(final_features)
 
-        except Exception as e:
-            print('The Exception message is: ', e)
-            return 'something is wrong'
-            # return render_template('results.html')
-        else:
-            return render_template('index.html')
+    output = round(prediction[0], 2)
+
+    return render_template('index.html', prediction_text='Survival prediction {}'.format(output))
+
+@app.route('/predict_api',methods=['POST'])
+def predict_api():
+    '''
+    For direct API calls trought request
+    '''
+    data = request.get_json(force=True)
+    prediction = model.predict([np.array(list(data.values()))])
+
+    output = prediction[0]
+    return jsonify(output)
 
 if __name__ == "__main__":
-    #app.run(host='127.0.0.1', port=8001, debug=True)
-	app.run(debug=True,port = 5001) # running the app
-
+    app.run(debug=True)
